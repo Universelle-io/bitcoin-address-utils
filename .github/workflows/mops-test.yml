@@ -12,15 +12,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Prepare ~/.local/bin
-        run: mkdir -p ~/.local/bin
-
       - name: Install DFX (headless)
         run: |
           DFX_VERSION=0.25.0
           curl -LO https://github.com/dfinity/sdk/releases/download/${DFX_VERSION}/dfx-x86_64-unknown-linux-gnu.tar.gz
-          tar -xvzf dfx-x86_64-unknown-linux-gnu.tar.gz
-          mv dfx-${DFX_VERSION}/dfx ~/.local/bin/dfx
+          tar -xzf dfx-x86_64-unknown-linux-gnu.tar.gz
+          chmod +x dfx
+          mkdir -p ~/.local/bin
+          mv dfx ~/.local/bin/
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - uses: ZenVoich/setup-mops@v1
