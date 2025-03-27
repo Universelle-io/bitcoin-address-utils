@@ -18,7 +18,7 @@ jobs:
 
       - name: Install Motoko compiler (moc)
         run: |
-          curl -LO https://github.com/dfinity/motoko/releases/download/0.10.2/moc-linux64
+          curl -LO https://github.com/dfinity/motoko/releases/download/0.13.7/moc-linux64
           chmod +x moc-linux64
           sudo mv moc-linux64 /usr/local/bin/moc
 
