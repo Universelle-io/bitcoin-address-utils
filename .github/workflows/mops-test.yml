@@ -17,7 +17,7 @@ jobs:
           DFX_VERSION=0.25.0
           curl -LO https://github.com/dfinity/sdk/releases/download/${DFX_VERSION}/dfx-x86_64-unknown-linux-gnu.tar.gz
           tar -xzf dfx-x86_64-unknown-linux-gnu.tar.gz
-          ls -la
+          cd dfx-x86_64-unknown-linux-gnu
           chmod +x dfx
           mkdir -p ~/.local/bin
           mv dfx ~/.local/bin/
