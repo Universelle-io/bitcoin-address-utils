@@ -12,20 +12,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install DFX
+        run: |
+          DFX_VERSION=0.25.0
+          sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
+          echo "$HOME/bin" >> $GITHUB_PATH
+
       - uses: ZenVoich/setup-mops@v1
         with:
           mops-version: 1
 
-      - name: Install Motoko compiler (moc)
-        run: |
-          curl -LO https://github.com/dfinity/motoko/releases/download/0.13.7/moc-linux64
-          chmod +x moc-linux64
-          sudo mv moc-linux64 /usr/local/bin/moc
-
       - name: Install mops packages
         run: mops install
 
-      - name: Run tests
-        env:
-          DFX_MOC_PATH: moc
+      - name: Run mops test
         run: mops test
