@@ -21,8 +21,9 @@ jobs:
       - name: Install dfx
         run: |
           DFX_VERSION=0.17.0
-          sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
-          echo "$HOME/bin" >> $GITHUB_PATH
+          curl -LO https://github.com/dfinity/sdk/releases/download/$DFX_VERSION/dfx-$DFX_VERSION-x86_64-linux.tar.gz
+          tar -xvzf dfx-$DFX_VERSION-x86_64-linux.tar.gz
+          sudo mv dfx /usr/local/bin/dfx
 
       - name: install mops packages
         run: mops install
