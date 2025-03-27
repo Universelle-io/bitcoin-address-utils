@@ -1,3 +1,6 @@
+# IMPORTANT 
+This package is still on development and is not intended to use on production yet. Use at your own risk.
+
 # Bitcoin Address Utils
 
 This Motoko module provides utilities to generate Bitcoin P2PKH and P2WPKH addresses from public keys, derived from an "owner" and "subaccount" using the secp256k1 curve.
