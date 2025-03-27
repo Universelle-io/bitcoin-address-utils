@@ -19,6 +19,16 @@ import Types "Types";
 module {
     let CURVE : Curves.Curve = Curves.secp256k1;
 
+    /// Generates a derivation path for a given owner (principal) and optional subaccount.
+    /// If no subaccount is provided, the path will contain only the owner.
+    /// If a subaccount is provided, it will be appended to the path.
+    ///
+    /// # Parameters:
+    /// - `owner`: The principal (owner) to derive the path from.
+    /// - `subaccount`: An optional subaccount to append to the path.
+    ///
+    /// # Returns:
+    /// A list of `Blob` objects representing the derivation path.
     public func get_derivation_path_from_owner(owner : Principal, subaccount : ?Blob) : [Blob] {
         let base = [Principal.toBlob(owner)];
         switch subaccount {
@@ -27,8 +37,14 @@ module {
         };
     };
 
-    /// P2PKH
-
+    /// Generates a P2PKH address from a public key (compressed SEC1 format) and the specified network.
+    ///
+    /// # Parameters:
+    /// - `network`: The Bitcoin network for which the address should be generated.
+    /// - `public_key_bytes`: The public key bytes in SEC1-compressed format.
+    ///
+    /// # Returns:
+    /// A P2PKH address in `Text` format.
     public func public_key_to_p2pkh_address(
         network : BitcoinTypes.Network,
         public_key_bytes : [Nat8],
@@ -39,6 +55,17 @@ module {
         address;
     };
 
+    /// Asynchronously retrieves the P2PKH address for a given owner and derivation path from the ECDSA canister.
+    ///
+    /// # Parameters:
+    /// - `owner`: The principal (owner) for which the address is derived.
+    /// - `derivation_path`: The derivation path used to derive the public key.
+    /// - `network`: The Bitcoin network for which the address should be generated.
+    /// - `ecdsa_canister_actor`: The ECDSA canister actor used to get the public key.
+    /// - `key_name`: The name of the key to use in the canister for deriving the public key.
+    ///
+    /// # Returns:
+    /// A P2PKH address in `Text` format.
     public func get_p2pkh_address(
         owner : Principal,
         derivation_path : [Blob],
@@ -65,8 +92,15 @@ module {
         public_key_to_p2pkh_address(network, pubkey_bytes);
     };
 
-    /// P2WPKH
-
+    /// Generates a P2WPKH address from a public key (compressed SEC1 format) and the specified network.
+    /// This function will first perform a SHA256 hash followed by a RIPEMD160 hash on the public key.
+    ///
+    /// # Parameters:
+    /// - `network`: The Bitcoin network for which the address should be generated.
+    /// - `public_key_bytes`: The public key bytes in SEC1-compressed format.
+    ///
+    /// # Returns:
+    /// A P2WPKH address in `Text` format.
     public func public_key_to_p2wpkh_address(
         network : BitcoinTypes.Network,
         public_key_bytes : [Nat8],
@@ -97,6 +131,17 @@ module {
         };
     };
 
+    /// Asynchronously retrieves the P2WPKH address for a given owner and derivation path from the ECDSA canister.
+    ///
+    /// # Parameters:
+    /// - `owner`: The principal (owner) for which the address is derived.
+    /// - `derivation_path`: The derivation path used to derive the public key.
+    /// - `network`: The Bitcoin network for which the address should be generated.
+    /// - `ecdsa_canister_actor`: The ECDSA canister actor used to get the public key.
+    /// - `key_name`: The name of the key to use in the canister for deriving the public key.
+    ///
+    /// # Returns:
+    /// A P2WPKH address in `Text` format.
     public func get_p2wpkh_address(
         owner : Principal,
         derivation_path : [Blob],
