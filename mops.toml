@@ -3,7 +3,7 @@ name = "bitcoin-address-utils"
 version = "1.0.0"
 description = "This package is intended to be a plug and play bitcoin address generator and utils to manage bitcoin address on motoco and Internet Computer"
 repository = "https://github.com/Universelle-io/bitcoin-address-utils.git"
-keywords = [ "bitcoin,", "address,", "generator" ]
+keywords = [ "bitcoin", "address", "generator" ]
 license = "MIT"
 
 [dependencies]
