@@ -13,9 +13,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: ZenVoich/setup-mops@v1
         with:
           mops-version: 1
+
+      - name: Install dfx
+        run: |
+          DFX_VERSION=0.17.0
+          sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
+          echo "$HOME/bin" >> $GITHUB_PATH
 
       - name: install mops packages
         run: mops install
