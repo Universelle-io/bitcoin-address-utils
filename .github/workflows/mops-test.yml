@@ -18,7 +18,7 @@ jobs:
       - name: Install DFX (headless)
         run: |
           DFX_VERSION=0.25.0
-          curl -LO https://github.com/dfinity/sdk/releases/download/${DFX_VERSION}/dfx-x86_64-unknown-linux-gnu.tar.gz
+          curl -LO https://github.com/dfinity/sdk/releases/download/0.25.0/dfx-x86_64-unknown-linux-gnu.tar.gz
           tar -xvzf dfx-${DFX_VERSION}-x86_64-linux.tar.gz
           mv dfx-${DFX_VERSION}/dfx ~/.local/bin/dfx
           echo "$HOME/.local/bin" >> $GITHUB_PATH
