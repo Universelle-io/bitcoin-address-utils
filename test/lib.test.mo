@@ -1,7 +1,7 @@
 import { test } "mo:test";
 import Principal "mo:base/Principal";
 import Blob "mo:base/Blob";
-import BitcoinAddressGenerator "../src/Main";
+import BitcoinAddressGenerator "../src/lib";
 
 // Constante común
 let test_principal = "jdzlb-sc4ik-hdkdr-nhzda-3m4tn-2znax-fxlfm-w2mhf-e5a3l-yyrce-cqe";
