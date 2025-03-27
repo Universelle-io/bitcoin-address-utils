@@ -2,6 +2,7 @@ import { test } "mo:test/async";
 import Debug "mo:base/Debug";
 import Principal "mo:base/Principal";
 import BitcoinAddressGenerator "../src/lib";
+import Types "../src/Types";
 
 actor {
     let test_principal = "jdzlb-sc4ik-hdkdr-nhzda-3m4tn-2znax-fxlfm-w2mhf-e5a3l-yyrce-cqe";
@@ -9,7 +10,7 @@ actor {
     func test_deterministic_p2pkh_address() : async () {
         let principal = Principal.fromText(test_principal);
         let path = BitcoinAddressGenerator.get_derivation_path_from_owner(principal, null);
-        let EcdsaActor : BitcoinAddressGenerator.EcdsaCanisterActor = actor ("aaaaa-aa");
+        let EcdsaActor : Types.EcdsaCanisterActor = actor ("aaaaa-aa");
 
         let addr1 = await BitcoinAddressGenerator.get_p2pkh_address(
             principal,
@@ -34,7 +35,7 @@ actor {
     func test_deterministic_p2wpkh_address() : async () {
         let principal = Principal.fromText(test_principal);
         let path = BitcoinAddressGenerator.get_derivation_path_from_owner(principal, null);
-        let EcdsaActor : BitcoinAddressGenerator.EcdsaCanisterActor = actor ("aaaaa-aa");
+        let EcdsaActor : Types.EcdsaCanisterActor = actor ("aaaaa-aa");
 
         let addr1 = await BitcoinAddressGenerator.get_p2wpkh_address(
             principal,
