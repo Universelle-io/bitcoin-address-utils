@@ -13,14 +13,12 @@ actor {
         let EcdsaActor : Types.EcdsaCanisterActor = actor ("aaaaa-aa");
 
         let addr1 = await BitcoinAddressGenerator.get_p2pkh_address(
-            principal,
             path,
             #Mainnet,
             EcdsaActor,
             "dfx_test_key",
         );
         let addr2 = await BitcoinAddressGenerator.get_p2pkh_address(
-            principal,
             path,
             #Mainnet,
             EcdsaActor,
@@ -38,14 +36,12 @@ actor {
         let EcdsaActor : Types.EcdsaCanisterActor = actor ("aaaaa-aa");
 
         let addr1 = await BitcoinAddressGenerator.get_p2wpkh_address(
-            principal,
             path,
             #Mainnet,
             EcdsaActor,
             "dfx_test_key",
         );
         let addr2 = await BitcoinAddressGenerator.get_p2wpkh_address(
-            principal,
             path,
             #Mainnet,
             EcdsaActor,

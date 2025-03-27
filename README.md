@@ -62,7 +62,11 @@ let subaccount : ?Blob = null; // Optionally specify a subaccount
 let derivation_path = BitcoinAddressUtils.get_derivation_path_from_owner(owner, subaccount);
 
 // Generate the P2PKH address
-let p2pkh_address = await BitcoinAddressUtils.get_p2pkh_address(owner, derivation_path, #Mainnet, ecdsa_canister_actor, "dfx_test_key");
+let p2pkh_address = await BitcoinAddressUtils.get_p2pkh_address(derivation_path, #Mainnet, ecdsa_canister_actor, "dfx_test_key");
+Debug.print("P2PKH Address from Principal: " # p2pkh_address);
+
+// Generate the P2WPKH address
+let p2pkh_address = await BitcoinAddressUtils.get_p2wpkh_address(derivation_path, #Mainnet, ecdsa_canister_actor, "dfx_test_key");
 Debug.print("P2PKH Address from Principal: " # p2pkh_address);
 ```
 

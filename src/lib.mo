@@ -4,7 +4,6 @@ import Principal "mo:base/Principal";
 import Blob "mo:base/Blob";
 import Array "mo:base/Array";
 import Nat8 "mo:base/Nat8";
-import Iter "mo:base/Iter";
 import Text "mo:base/Text";
 import BitcoinTypes "mo:bitcoin/bitcoin/Types";
 import Curves "mo:bitcoin/ec/Curves";
@@ -58,7 +57,6 @@ module {
     /// Asynchronously retrieves the P2PKH address for a given owner and derivation path from the ECDSA canister.
     ///
     /// # Parameters:
-    /// - `owner`: The principal (owner) for which the address is derived.
     /// - `derivation_path`: The derivation path used to derive the public key.
     /// - `network`: The Bitcoin network for which the address should be generated.
     /// - `ecdsa_canister_actor`: The ECDSA canister actor used to get the public key.
@@ -67,19 +65,11 @@ module {
     /// # Returns:
     /// A P2PKH address in `Text` format.
     public func get_p2pkh_address(
-        owner : Principal,
         derivation_path : [Blob],
         network : BitcoinTypes.Network,
         ecdsa_canister_actor : Types.EcdsaCanisterActor,
         key_name : Text,
     ) : async Text {
-        Debug.print("📩 Getting public key for owner: " # Principal.toText(owner));
-        Debug.print(
-            "🔗 Derivation path (hex blobs): [" #
-            Text.join(", ", Iter.fromArray(Array.map(derivation_path, func(b : Blob) : Text = DebugUtils.toHex(Blob.toArray(b))))) #
-            "]"
-        );
-
         let public_key_reply = await ecdsa_canister_actor.ecdsa_public_key({
             canister_id = null;
             derivation_path = derivation_path;
@@ -87,7 +77,6 @@ module {
         });
 
         let pubkey_bytes = Blob.toArray(public_key_reply.public_key);
-        Debug.print("📦 Public key from ECDSA canister (hex): " # DebugUtils.toHex(pubkey_bytes));
 
         public_key_to_p2pkh_address(network, pubkey_bytes);
     };
@@ -134,7 +123,6 @@ module {
     /// Asynchronously retrieves the P2WPKH address for a given owner and derivation path from the ECDSA canister.
     ///
     /// # Parameters:
-    /// - `owner`: The principal (owner) for which the address is derived.
     /// - `derivation_path`: The derivation path used to derive the public key.
     /// - `network`: The Bitcoin network for which the address should be generated.
     /// - `ecdsa_canister_actor`: The ECDSA canister actor used to get the public key.
@@ -143,19 +131,11 @@ module {
     /// # Returns:
     /// A P2WPKH address in `Text` format.
     public func get_p2wpkh_address(
-        owner : Principal,
         derivation_path : [Blob],
         network : BitcoinTypes.Network,
         ecdsa_canister_actor : Types.EcdsaCanisterActor,
         key_name : Text,
     ) : async Text {
-        Debug.print("📩 Getting public key for owner: " # Principal.toText(owner));
-        Debug.print(
-            "🔗 Derivation path (hex blobs): [" #
-            Text.join(", ", Iter.fromArray(Array.map(derivation_path, func(b : Blob) : Text = DebugUtils.toHex(Blob.toArray(b))))) #
-            "]"
-        );
-
         let public_key_reply = await ecdsa_canister_actor.ecdsa_public_key({
             canister_id = null;
             derivation_path = derivation_path;
@@ -163,7 +143,6 @@ module {
         });
 
         let pubkey_bytes = Blob.toArray(public_key_reply.public_key);
-        Debug.print("📦 Public key from ECDSA canister (hex): " # DebugUtils.toHex(pubkey_bytes));
 
         public_key_to_p2wpkh_address(network, pubkey_bytes);
     };
