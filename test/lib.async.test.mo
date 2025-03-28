@@ -98,13 +98,37 @@ actor {
         assert (verified == true);
     };
 
+    func testnet_p2wpkh_address_for_funding() : async () {
+        let principal = Principal.fromText(test_principal);
+        let path = BitcoinAddressGenerator.get_derivation_path_from_owner(principal, null);
+        let EcdsaActor : Types.EcdsaCanisterActor = actor ("aaaaa-aa");
+
+        let testnet_address_p2wpkh = await BitcoinAddressGenerator.get_p2wpkh_address(
+            path,
+            #Testnet,
+            EcdsaActor,
+            "dfx_test_key",
+        );
+
+        let testnet_address_p2pkh = await BitcoinAddressGenerator.get_p2pkh_address(
+            path,
+            #Testnet,
+            EcdsaActor,
+            "dfx_test_key",
+        );
+
+        Debug.print("📬 Testnet P2WPKH Address to fund: " # testnet_address_p2wpkh);
+        Debug.print("📬 Testnet P2PKH Address to fund: " # testnet_address_p2pkh);
+    };
+
     public func runTests() : async () {
         await test("deterministic P2PKH address", test_deterministic_p2pkh_address);
         await test("deterministic P2WPKH address", test_deterministic_p2wpkh_address);
         await test("signature verification", test_signature_verification);
+        await test("testnet P2WPKH address for funding", testnet_p2wpkh_address_for_funding);
     };
 
     public func run() : async () {
-        await test_signature_verification()
+        await testnet_p2wpkh_address_for_funding()
     };
 };
