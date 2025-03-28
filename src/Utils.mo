@@ -2,6 +2,15 @@ import Nat8 "mo:base/Nat8";
 import Nat32 "mo:base/Nat32";
 import Buffer "mo:base/Buffer";
 import Result "mo:base/Result";
+import Blob "mo:base/Blob";
+import Debug "mo:base/Debug";
+import Array "mo:base/Array";
+import PublicKey "mo:bitcoin/ecdsa/Publickey";
+import EcdsaTypes "mo:bitcoin/ecdsa/Types";
+import Curves "mo:bitcoin/ec/Curves";
+import Der "mo:bitcoin/ecdsa/Der";
+import Common "mo:bitcoin/Common";
+
 module {
     public func convertBits(input : [Nat8], fromBits : Nat32, toBits : Nat32, pad : Bool) : Result.Result<[Nat8], Text> {
         if (fromBits > 8 or toBits > 8) {
@@ -37,5 +46,42 @@ module {
 
         return #ok(Buffer.toArray(outputBuffer));
     };
+
+    public func public_key_from_sec1_compressed(sec1 : Blob) : ?EcdsaTypes.PublicKey {
+        let curve = Curves.secp256k1;
+        let result = PublicKey.decode(#sec1(Blob.toArray(sec1), curve));
+        switch result {
+            case (#ok(pk)) ?pk;
+            case (#err(msg)) {
+                Debug.print("❌ PublicKey decode error: " # msg);
+                null;
+            };
+        };
+    };
+
+    public func signature_from_der(der : Blob) : ?EcdsaTypes.Signature {
+        switch (Der.decodeSignature(der)) {
+            case (#ok(sig)) {
+                ?sig;
+            };
+            case (#err(msg)) {
+                Debug.print("❌ DER decode error: " # msg);
+                null;
+            };
+        };
+    };
+
+    public func signature_from_raw(blob : Blob) : ?EcdsaTypes.Signature {
+        let bytes = Blob.toArray(blob);
+        if (bytes.size() != 64) return null;
+
+        let r_bytes = Array.subArray(bytes, 0, 32);
+        let s_bytes = Array.subArray(bytes, 32, 32);
+
+        let r = Common.readBE256(r_bytes, 0);
+        let s = Common.readBE256(s_bytes, 0);
+
+        ?{ r; s };
+    }
 
 };

@@ -1,7 +1,13 @@
 {
-    "defaults": {
-      "build": {
-        "packtool": "mops sources"
-      }
+  "canisters": {
+    "debug": {
+      "main": "test/lib.async.test.mo",
+      "type": "motoko"
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": "mops sources"
     }
   }
+}
