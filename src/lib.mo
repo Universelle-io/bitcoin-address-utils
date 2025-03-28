@@ -151,17 +151,23 @@ module {
         public_key_to_p2wpkh_address(network, pubkey_bytes);
     };
 
-    /// Asynchronously signs a message using the ECDSA canister and the provided derivation path.
-    /// The message is hashed using SHA256 before signing.
+    /// Asynchronously signs a UTF-8 text message using the ECDSA canister and the provided derivation path.
+    /// The message is hashed using SHA256 before being signed.
+    ///
+    /// This function returns the signature in RAW format (64 bytes), which consists of the concatenation of
+    /// the 32-byte `r` and `s` values of the ECDSA signature.
+    ///
+    /// ⚠️ IMPORTANTE: sign is generated using `SHA256(UTF8(message))`. make sure to use same hash
+    /// when you verify the signature or verification process will fail.
     ///
     /// # Parameters:
-    /// - `message`: The text message to sign.
-    /// - `derivation_path`: The derivation path used to derive the private key.
-    /// - `ecdsa_canister_actor`: The ECDSA canister actor used to perform the signature.
-    /// - `key_name`: The name of the key to use in the canister.
+    /// - `message`: The text message to sign (will be UTF-8 encoded and hashed).
+    /// - `derivation_path`: The derivation path used to derive the private key inside the ECDSA canister.
+    /// - `ecdsa_canister_actor`: The actor reference to the ECDSA canister (`aaaaa-aa`).
+    /// - `key_name`: The name of the ECDSA key (usually `"dfx_test_key"` in local dev).
     ///
     /// # Returns:
-    /// The ECDSA signature as a `Blob`.
+    /// - A `Blob` containing the signature in RAW format (64 bytes: `r || s`).
     public func sign_message(
         message : Text,
         derivation_path : [Blob],
@@ -186,35 +192,41 @@ module {
         signature_reply.signature;
     };
 
+    /// Verifies an ECDSA signature over a UTF-8 message using the Bitcoin secp256k1 curve.
+    ///
+    /// This function accepts either a RAW (64-byte) signature or a DER-encoded one.
+    /// It infers the format automatically based on the signature length.
+    ///
+    /// ⚠️ IMPORTANT: This function **Don`t hash again the message**  Instead,
+    /// considers that the received message is in SHA256 format (same as signing process).
+    /// only use if the message has been previously converted with `Text.encodeUtf8` and `Sha256`.
+    ///
+    /// # Parameters:
+    /// - `message`: The original message in plain text. It será codificado en UTF-8 y se asumirá como el hash.
+    /// - `public_key_sec1`: The compressed SEC1 format (33 bytes) public key used to verify the signature.
+    /// - `signature_blob`: The signature, in either RAW (64 bytes) or DER format.
+    ///
+    /// # Returns:
+    /// - `true` if the signature is valid, `false` otherwise.
     public func verify_signature(
         message : Text,
         public_key_sec1 : Blob,
         signature_blob : Blob,
     ) : Bool {
-        Debug.print("📥 Verifying signature for message: \"" # message # "\"");
-
         let message_bytes = Blob.toArray(Text.encodeUtf8(message));
-        let hash_bytes = message_bytes;
-
-        Debug.print("🔑 Message hash (hex): " # DebugUtils.toHex(hash_bytes));
 
         let ?pubkey = Utils.public_key_from_sec1_compressed(public_key_sec1) else {
             Debug.print("❌ Failed to deserialize public key from SEC1 compressed format");
             return false;
         };
-        Debug.print("✅ Public key deserialized");
 
         let signature : ECDSA.Signature = if (Array.size(Blob.toArray(signature_blob)) == 64) {
-            Debug.print("ℹ️ Firma recibida está en formato RAW.");
-
             let ?sig = Utils.signature_from_raw(signature_blob) else {
                 Debug.print("❌ Failed to deserialize RAW signature");
                 return false;
             };
             sig;
         } else {
-            Debug.print("ℹ️ Firma recibida está en formato DER.");
-
             switch (Der.decodeSignature(signature_blob)) {
                 case (#ok(sig)) sig;
                 case (#err(msg)) {
@@ -223,19 +235,7 @@ module {
                 };
             };
         };
-
-        Debug.print("✅ Signature deserialized");
-        Debug.print("🔍 r: " # Nat.toText(signature.r));
-        Debug.print("🔍 s: " # Nat.toText(signature.s));
-
-        let verified = ECDSA.verify(signature, pubkey, hash_bytes);
-
-        if (verified) {
-            Debug.print("✅ Signature verified successfully");
-        } else {
-            Debug.print("❌ Signature verification failed");
-        };
-
+        let verified = ECDSA.verify(signature, pubkey, message_bytes);
         verified;
     };
 
