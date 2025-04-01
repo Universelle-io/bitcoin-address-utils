@@ -5,6 +5,11 @@ import PublicKey "mo:bitcoin/ecdsa/Publickey";
 import EcdsaTypes "mo:bitcoin/ecdsa/Types";
 import Curves "mo:bitcoin/ec/Curves";
 import Common "mo:bitcoin/Common";
+import Script "mo:bitcoin/bitcoin/Script";
+import Ripemd160 "mo:bitcoin/Ripemd160";
+import Bitcoin "mo:bitcoin/bitcoin/Bitcoin";
+import Sha256 "mo:sha2/Sha256";
+import Types "Types";
 
 module {
     public func public_key_from_sec1_compressed(sec1 : Blob) : ?EcdsaTypes.PublicKey {
@@ -30,6 +35,6 @@ module {
         let s = Common.readBE256(s_bytes, 0);
 
         ?{ r; s };
-    }
+    };
 
 };

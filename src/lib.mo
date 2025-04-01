@@ -8,18 +8,19 @@ import Text "mo:base/Text";
 import BitcoinTypes "mo:bitcoin/bitcoin/Types";
 import Curves "mo:bitcoin/ec/Curves";
 import Ripemd160 "mo:bitcoin/Ripemd160";
-import Bech32 "mo:bitcoin/Bech32";
 import Sha256 "mo:sha2/Sha256";
-import Cycles "mo:base/ExperimentalCycles";
-import Nat "mo:base/Nat";
 import Result "mo:base/Result";
 import Iter "mo:base/Iter";
 import Nat32 "mo:base/Nat32";
+import Buffer "mo:base/Buffer";
+import Nat "mo:base/Nat";
 import ECDSA "mo:bitcoin/ecdsa/Ecdsa";
 import Der "mo:bitcoin/ecdsa/Der";
 import Script "mo:bitcoin/bitcoin/Script";
 import Transaction "mo:bitcoin/bitcoin/Transaction";
 import Segwit "mo:bitcoin/Segwit";
+import Address "mo:bitcoin/bitcoin/Address";
+import Bitcoin "mo:bitcoin/bitcoin/Bitcoin";
 import Hex "mo:base16/Base16";
 
 import Utils "./Utils";
@@ -239,240 +240,147 @@ module {
         verified;
     };
 
-    /// Signs all P2WPKH inputs in a raw Bitcoin transaction that match the provided public key.
-    ///
-    /// This function parses the raw transaction (in hex), derives the P2WPKH scriptPubKey from the given
-    /// public key, and signs every input whose scriptPubKey matches.
-    ///
-    /// # Parameters
-    /// - `tx_hex`: Raw Bitcoin transaction in hexadecimal format (not a PSBT).
-    /// - `pubkey`: Public key in compressed SEC1 format (33 bytes).
-    /// - `derivation_path`: Derivation path used to retrieve the private key from the ECDSA canister.
-    /// - `ecdsa_canister_actor`: Actor interface for the Management Canister (`aaaaa-aa`) that exposes `sign_with_ecdsa`.
-    /// - `key_name`: Name of the key to use (e.g., `"dfx_test_key"` for local testing).
-    ///
-    /// # Returns
-    /// - `#ok(signedTxHex)`: The fully signed transaction in hexadecimal format.
-    /// - `#err(message)`: Error message if the signing process fails.
-    ///
-    /// # Limitations
-    /// - Only supports signing P2WPKH inputs.
-    /// - Input amounts are not provided, which is technically required for full BIP-143 compliance.
-    ///   This function assumes zeroed input amounts when computing the sighash.
-    /// - Uses `SIGHASH_ALL` as the sighash type.
-    ///
-    /// # Future Improvements
-    /// A version of this function will include a parameter to provide UTXO amounts per input,
-    /// enabling 100% BIP-143 compliance.
-    ///
-    /// # Example
-    /// ```motoko
-    /// let result = await sign_transaction_p2wpkh_from_hex(
-    ///   "0200000001...",
-    ///   pubkey,
-    ///   derivationPath,
-    ///   ecdsaActor,
-    ///   "dfx_test_key"
-    /// );
-    /// ```
-
-    /* public func sign_transaction_p2wpkh_from_hex(
-        tx_hex : Text,
-        pubkey : [Nat8],
-        derivation_path : [Blob],
-        ecdsa_canister_actor : Types.EcdsaCanisterActor,
-        key_name : Text,
-    ) : async Result.Result<Text, Text> {
-        // 1. Decode hex -> blob
-        let ?tx_bytes = Hex.decode(tx_hex) else {
-            return #err("❌ Invalid tx hex");
-        };
-
-        // 2. Parse tx
-        let tx_res = Transaction.fromBytes(Array.vals(Blob.toArray(tx_bytes)));
-        let tx = switch tx_res {
-            case (#ok t) t;
-            case (#err msg) return #err("❌ Cannot parse tx: " # msg);
-        };
-
-        // 3. Derive the scriptPubKey for this pubkey (P2WPKH)
-        let sha256 = Sha256.fromArray(#sha256, pubkey);
-        let pubkey_hash160 = Ripemd160.hash(Blob.toArray(sha256));
-        let script_pubkey : Script.Script = [
-            #opcode(#OP_0),
-            #data(pubkey_hash160),
-        ];
-
-        // 4. Iterate inputs and match which ones can be signed
-        let sighash_type : Nat32 = 0x01; // SIGHASH_ALL
-        var signed_any = false;
-
-        for (i in Iter.range(0, tx.txInputs.size() - 1)) {
-            // TODO: Mejorar esto si puedes obtener el scriptPubKey original del input.
-            // Aquí asumimos que todos los inputs son tipo P2WPKH de tu pubkey.
-            let sig_hash = tx.createP2pkhSignatureHash(
-                script_pubkey,
-                Nat32.fromNat(i),
-                sighash_type,
-            );
-
-            let sig_reply = await ecdsa_canister_actor.sign_with_ecdsa({
-                message_hash = Blob.fromArray(sig_hash);
-                derivation_path = derivation_path;
-                key_id = { curve = #secp256k1; name = key_name };
-            });
-
-            let raw_sig = Blob.toArray(sig_reply.signature);
-            if (raw_sig.size() != 64) {
-                return #err("❌ Signature must be 64 bytes RAW");
-            };
-
-            let sig_with_type = Array.append(raw_sig, [Nat8.fromNat(Nat32.toNat(sighash_type))]);
-
-            // Inserta el testigo
-            tx.witnesses[i] := [
-                sig_with_type,
-                pubkey,
-            ];
-            signed_any := true;
-        };
-
-        if (not signed_any) {
-            return #err("❌ No matching inputs found to sign for this pubkey");
-        };
-
-        // 5. Serialize and return hex
-        let final_tx_bytes = tx.toBytes();
-        let hex_result = Hex.encode(Blob.fromArray(final_tx_bytes));
-
-        #ok(hex_result);
-    }; */
-
-    /// Signs all P2WPKH inputs in a Bitcoin transaction that belong to a given public key,
-    /// using the ECDSA system canister. It uses a list of known UTXOs to match the inputs.
-    ///
-    /// The function parses the transaction, iterates through its inputs, and for each one:
-    /// - Matches the input’s `outpoint` against the provided list of UTXOs (by `txid` and `vout`)
-    /// - Computes the BIP-143 sighash using the corresponding UTXO value
-    /// - Signs the hash with the ECDSA canister using the provided derivation path
-    /// - Inserts the generated witness (signature + pubkey) into the transaction
+    /// Signs a P2PKH transaction provided as a hexadecimal string using the ECDSA canister.
+    /// Assumes all inputs are spending outputs controlled by the provided public key.
     ///
     /// # Parameters:
-    /// - `tx_hex`: Raw transaction in hexadecimal format (non-PSBT, but with inputs/outputs filled)
-    /// - `pubkey`: Compressed SEC1 public key (33 bytes) that corresponds to the UTXOs
-    /// - `derivation_path`: Path used to derive the private key for signing
-    /// - `ecdsa_canister_actor`: Actor reference to the management canister or delegated ECDSA signer
-    /// - `key_name`: Name of the key to use (e.g., `"dfx_test_key"`)
-    /// - `utxos`: List of known UTXOs for the address, including their values and outpoints
+    /// - `tx_hex`: The raw transaction encoded as a hexadecimal string.
+    /// - `pubkey`: The compressed public key (`[Nat8]`) corresponding to the P2PKH address being spent from.
+    /// - `derivation_path`: The derivation path used for signing with the ECDSA canister.
+    /// - `ecdsa_canister_actor`: The actor interface for the ECDSA canister.
+    /// - `key_name`: The name of the ECDSA key to use for signing.
+    /// - `utxos`: The list of UTXOs being spent by the transaction (currently unused in this P2PKH signing logic, but kept for signature consistency).
     ///
     /// # Returns:
-    /// - `#ok(signed_tx_hex)`: Fully signed transaction in hex (with SegWit witnesses included)
-    /// - `#err(error_message)`: Descriptive error if parsing or signing failed
-    ///
-    /// # Notes:
-    /// - Only SegWit P2WPKH inputs matching UTXOs will be signed
-    /// - Inputs not recognized in the UTXO list are left untouched
-    /// - Taproot, P2PKH, and multisig are not supported (yet)
-    ///
-    /// Example usage:
-    /// ```motoko
-    /// let result = await sign_transaction_p2wpkh_from_hex(tx_hex, pubkey, path, ecdsa_actor, "dfx_test_key", utxos);
-    /// switch result {
-    ///   case (#ok(signed)) { /* broadcast */ };
-    ///   case (#err(e)) { /* handle error */ };
-    /// }
-    /// ```
-    public func sign_transaction_p2wpkh_from_hex(
+    /// A `Result.Result` containing the signed transaction as a hexadecimal string (`#ok`) or an error message (`#err`).
+    public func sign_transaction_p2pkh_from_hex(
         tx_hex : Text,
-        pubkey : [Nat8],
+        pubkey : [Nat8], // The public key controlling the inputs
         derivation_path : [Blob],
         ecdsa_canister_actor : Types.EcdsaCanisterActor,
         key_name : Text,
-        utxos : [BitcoinTypes.Utxo],
     ) : async Result.Result<Text, Text> {
-        // Step 1: Decode the hex string
-        let ?tx_blob = Hex.decode(tx_hex) else return #err("❌ Invalid hex string");
-        let tx_bytes = Blob.toArray(tx_blob);
 
-        // Step 2: Parse the transaction
+        // 1. Decodificar la transacción
+        let ?tx_blob = Hex.decode(tx_hex) else {
+            Debug.print("❌ Invalid hex string for transaction");
+            return #err("Invalid hex string for transaction");
+        };
+        let tx_bytes = Blob.toArray(tx_blob);
         let iter = Array.vals(tx_bytes);
+
+        // 2. Parsear la transacción
         let tx_res = Transaction.fromBytes(iter);
         let tx = switch tx_res {
             case (#ok t) t;
-            case (#err msg) return #err("❌ Failed to parse transaction: " # msg);
-        };
-
-        // Step 3: Derive the address from the pubkey
-        let sha256 = Sha256.fromArray(#sha256, pubkey);
-        let hash160 = Ripemd160.hash(Blob.toArray(sha256));
-        let my_script_pubkey : Script.Script = [
-            #opcode(#OP_0),
-            #data(hash160),
-        ];
-
-        // Step 4: Determine which inputs to sign
-        let my_utxos = Array.filter<BitcoinTypes.Utxo>(
-            utxos,
-            func(utxo) {
-                let script_hash = Ripemd160.hash(
-                    Blob.toArray(
-                        Sha256.fromArray(#sha256, pubkey)
-                    )
-                );
-                let script = [
-                    #opcode(#OP_0),
-                    #data(script_hash),
-                ];
-                Script.toBytes(script) == Script.toBytes(my_script_pubkey);
-            },
-        );
-
-        if (my_utxos.size() == 0) return #err("❌ No matching UTXOs found");
-
-        // Step 5: Iterate over inputs and sign those that match our UTXOs
-        let sighash_type : Nat32 = 0x01; // SIGHASH_ALL
-
-        for (i in Iter.range(0, tx.txInputs.size() - 1)) {
-            let input = tx.txInputs[i];
-            let matching = Array.find<BitcoinTypes.Utxo>(
-                my_utxos,
-                func(utxo) {
-                    Blob.toArray(utxo.outpoint.txid) == Blob.toArray(input.prevOutput.txid) and utxo.outpoint.vout == input.prevOutput.vout;
-                },
-            );
-
-            switch matching {
-                case null {};
-                case (?utxo) {
-                    let sig_hash = tx.createP2pkhSignatureHash(
-                        my_script_pubkey,
-                        Nat32.fromNat(i),
-                        sighash_type,
-                    );
-
-                    let sig_reply = await ecdsa_canister_actor.sign_with_ecdsa({
-                        message_hash = Blob.fromArray(sig_hash);
-                        derivation_path = derivation_path;
-                        key_id = { curve = #secp256k1; name = key_name };
-                    });
-
-                    let raw_sig = Blob.toArray(sig_reply.signature);
-                    if (raw_sig.size() != 64) return #err("❌ Invalid RAW signature length");
-
-                    let sig_with_type = Array.append(raw_sig, [Nat8.fromNat(Nat32.toNat(sighash_type))]);
-
-                    tx.witnesses[i] := [
-                        sig_with_type,
-                        pubkey,
-                    ];
-                };
+            case (#err msg) {
+                Debug.print("❌ Failed to parse transaction: " # msg);
+                return #err("Failed to parse transaction: " # msg);
             };
         };
+        Debug.print("📄 Parsed transaction successfully. Inputs: " # Nat.toText(tx.txInputs.size()));
 
-        // Step 6: Serialize transaction and return hex
-        let final_tx_bytes = tx.toBytes();
-        let hex_result = Hex.encode(Blob.fromArray(final_tx_bytes));
-        #ok(hex_result);
+        // 3. Derivar el ScriptPubKey P2PKH desde la clave pública proporcionada
+        // Este es el script de los outputs que estamos gastando.
+        let pubkey_hash = Ripemd160.hash(Blob.toArray(Sha256.fromArray(#sha256, pubkey)));
+        let script_pub_key : Script.Script = [
+            #opcode(#OP_DUP),
+            #opcode(#OP_HASH160),
+            #data(pubkey_hash),
+            #opcode(#OP_EQUALVERIFY),
+            #opcode(#OP_CHECKSIG),
+        ];
+        // Debug.print("📜 Derived scriptPubKey: " # Script.scriptToText(script_pub_key)); // Asumiendo una función scriptToText
+
+        // 4. Iterar por los inputs, firmar y construir los scriptSigs
+        // Usamos un Buffer para recolectar los scriptSigs calculados
+        let scriptSigsBuffer = Buffer.Buffer<Script.Script>(tx.txInputs.size());
+
+        for (i in Iter.range(0, tx.txInputs.size() - 1)) {
+            let input_index = Nat32.fromNat(i); // Índice actual como Nat32
+            Debug.print("✍️  Signing input " # Nat.toText(i));
+
+            // 4a. Crear el hash de firma (SIGHASH_ALL por defecto)
+            let sighash_bytes : [Nat8] = tx.createP2pkhSignatureHash(
+                script_pub_key, // El scriptPubKey del output que este input está gastando
+                input_index,
+                BitcoinTypes.SIGHASH_ALL,
+            );
+            let sighash_blob = Blob.fromArray(sighash_bytes);
+            // Debug.print("🔑 Sighash (hex) for input " # Nat.toText(i) # ": " # DebugUtils.toHex(sighash_bytes)); // Asumiendo DebugUtils.toHex
+
+            // 4b. Llamar al canister ECDSA para firmar el hash
+            // Adaptar la estructura de EcdsaKeyId si es diferente en tu `Types`
+            let key_id : Types.EcdsaKeyId = {
+                curve = #secp256k1;
+                name = key_name;
+            };
+            let sign_request : Types.SignWithECDSA = {
+                message_hash = sighash_blob;
+                derivation_path = derivation_path;
+                key_id = key_id;
+            };
+
+            // Realizar la llamada asíncrona
+            let sign_response = await ecdsa_canister_actor.sign_with_ecdsa(sign_request);
+            let signature_blob = sign_response.signature;
+
+            // 4c. Formatear la firma: DER encoding + SIGHASH_ALL byte
+            let encoded_signature_der_blob = Der.encodeSignature(signature_blob);
+
+            let der_signature_bytes : [Nat8] = Blob.toArray(encoded_signature_der_blob);
+                
+
+            // Añadir el byte SIGHASH_ALL al final de la firma DER
+            let signature_with_sighash_type : [Nat8] = Array.append(
+                der_signature_bytes,
+                [Nat8.fromNat(Nat32.toNat(BitcoinTypes.SIGHASH_ALL))],
+            );
+            // Debug.print("📄 Formatted signature (hex) for input " # Nat.toText(i) # ": " # DebugUtils.toHex(signature_with_sighash_type));
+
+            // 4d. Construir el ScriptSig: <firma_formateada> <clave_publica>
+            let script_sig : Script.Script = [
+                #data(signature_with_sighash_type), // La firma DER + SIGHASH_ALL
+                #data(pubkey) // La clave pública que corresponde al scriptPubKey
+            ];
+            // Debug.print("📜 Constructed scriptSig for input " # Nat.toText(i));
+
+            // Añadir el scriptSig calculado al buffer
+            scriptSigsBuffer.add(script_sig);
+        };
+
+        // 5. Actualizar los inputs de la transacción con los scriptSigs calculados
+        let final_script_sigs = Buffer.toArray(scriptSigsBuffer);
+
+        // Comprobación de seguridad: debemos tener tantos scriptSigs como inputs
+        if (final_script_sigs.size() != tx.txInputs.size()) {
+            let error_msg = "Internal error: Mismatch between input count ("
+            # Nat.toText(tx.txInputs.size())
+            # ") and signature count ("
+            # Nat.toText(final_script_sigs.size())
+            # ")";
+            Debug.print("❌ " # error_msg);
+            return #err(error_msg);
+        };
+
+        // Asignar cada scriptSig a su input correspondiente.
+        // Esto modifica el objeto 'tx' directamente si TxInput.script es mutable ('var').
+        // Si TxInput.script no es mutable, necesitarías crear nuevos TxInput y luego una nueva Transaction.
+        // La librería motoko-bitcoin parece usar campos mutables para esto en sus funciones de firma.
+        for (i in Iter.range(0, tx.txInputs.size() - 1)) {
+            // Asumiendo que tx.txInputs[i].script es mutable (var)
+            tx.txInputs[i].script := final_script_sigs[i];
+        };
+        Debug.print("✅ All inputs updated with scriptSigs.");
+
+        // 6. Serializar la transacción firmada a bytes
+        let signed_tx_bytes : [Nat8] = tx.toBytes();
+
+        // 7. Codificar a hexadecimal y devolver
+        let signed_tx_hex = Hex.encode(Blob.fromArray(signed_tx_bytes));
+        Debug.print("✅ Signed transaction (hex): " # signed_tx_hex);
+
+        return #ok(signed_tx_hex);
     };
 
 };

@@ -5,6 +5,11 @@ module {
         #P2TR;
     };
 
+    public type EcdsaProxy = {
+        sign : (Blob, [Blob]) -> Blob;
+        publicKey : () -> (Blob, Blob);
+    };
+
     public type ECDSAPublicKeyReply = {
         public_key : Blob;
         chain_code : Blob;
@@ -21,7 +26,7 @@ module {
     };
 
     type EcdsaCurve = { #secp256k1 };
-    type EcdsaKeyId = {
+    public type EcdsaKeyId = {
         curve : EcdsaCurve;
         name : Text;
     };
