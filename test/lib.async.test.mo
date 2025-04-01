@@ -9,10 +9,10 @@ import BitcoinAddressGenerator "../src/lib";
 import Types "../src/Types";
 import DebugUtils "../src/DebugUtils";
 import BitcoinApi "../src/BitcoinApi";
-import Transaction "mo:bitcoin/bitcoin/Transaction";
-import Address "mo:bitcoin/bitcoin/Address";
-import Bitcoin "mo:bitcoin/bitcoin/Bitcoin";
-import BitcoinTypes "mo:bitcoin/bitcoin/Types";
+import Transaction "../src/bitcoin/Transaction";
+import Address "../src/bitcoin/Address";
+import Bitcoin "../src/bitcoin/Bitcoin";
+import BitcoinTypes "../src//bitcoin/Types";
 import Witness "mo:bitcoin/bitcoin/Witness";
 import Hex "mo:base16/Base16";
 
@@ -129,29 +129,17 @@ actor {
         );
     };
 
-    public func get_utxos(address : ?Text) : async [BitcoinApi.Utxo] {
-        let efective_address = switch address {
-            case (?a) a;
-            case (_) {
-                "bcrt1qncwqapkpapl8d00mgwt2s6cqdfsvz7cyr4ehk8";
-            };
-        };
-        Debug.print("🔍 Buscando UTXOs para dirección: " # efective_address);
-        let utxos_response = await BitcoinApi.get_utxos(#Regtest, efective_address);
+    public func get_utxos(address : Text) : async [BitcoinApi.Utxo] {
+        Debug.print("🔍 Buscando UTXOs para dirección: " # address);
+        let utxos_response = await BitcoinApi.get_utxos(#Regtest, address);
         Debug.print("🔍 UTXOs encontrados: " # debug_show (utxos_response.utxos.size()));
         let utxos = utxos_response.utxos;
         utxos;
     };
 
-    public func get_balance(address : ?Text) : async BitcoinApi.Satoshi {
-        let efective_address = switch address {
-            case (?a) a;
-            case (_) {
-                "bcrt1qncwqapkpapl8d00mgwt2s6cqdfsvz7cyr4ehk8";
-            };
-        };
-        Debug.print("🔍 Buscando UTXOs para dirección: " # efective_address);
-        let balance_response = await BitcoinApi.get_balance(#Regtest, efective_address);
+    public func get_balance(address : Text) : async BitcoinApi.Satoshi {
+        Debug.print("🔍 Buscando UTXOs para dirección: " # address);
+        let balance_response = await BitcoinApi.get_balance(#Regtest, address);
         balance_response;
     };
 
@@ -207,7 +195,7 @@ actor {
         };
 
         // Construir transacción consolidando todos los utxos a sí misma
-        let destinations : [(BitcoinTypes.Address, Nat64)] = [(btc_address, amount)];
+        let destinations : [(BitcoinTypes.Address, BitcoinTypes.Satoshi)] = [(btc_address, amount)];
         let tx_result = Bitcoin.buildTransaction(
             2,
             utxos,
@@ -317,6 +305,8 @@ actor {
 
         // Construir transacción consolidando todos los utxos a sí misma
         let destinations : [(BitcoinTypes.Address, Nat64)] = [(btc_address, amount)];
+        Debug.print("📤 BTC_ADDRESS: " # debug_show(btc_address));
+        Debug.print("📤 DESTINATIONS: " # debug_show(destinations));
         let tx_result = Bitcoin.buildTransaction(
             2,
             utxos,

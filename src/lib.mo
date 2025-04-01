@@ -17,10 +17,8 @@ import Nat "mo:base/Nat";
 import ECDSA "mo:bitcoin/ecdsa/Ecdsa";
 import Der "mo:bitcoin/ecdsa/Der";
 import Script "mo:bitcoin/bitcoin/Script";
-import Transaction "./Transaction";
+import Transaction "./bitcoin/Transaction";
 import Segwit "mo:bitcoin/Segwit";
-import Address "mo:bitcoin/bitcoin/Address";
-import Bitcoin "mo:bitcoin/bitcoin/Bitcoin";
 import Witness "mo:bitcoin/bitcoin/Witness";
 import Hex "mo:base16/Base16";
 
