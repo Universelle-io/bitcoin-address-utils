@@ -15,16 +15,17 @@ import Nat32 "mo:base/Nat32";
 import Buffer "mo:base/Buffer";
 import Nat "mo:base/Nat";
 import ECDSA "mo:bitcoin/ecdsa/Ecdsa";
+import EcdsaTypes "mo:bitcoin/ecdsa/Types";
 import Der "mo:bitcoin/ecdsa/Der";
 import Script "mo:bitcoin/bitcoin/Script";
 import Transaction "./bitcoin/Transaction";
-import Segwit "mo:bitcoin/Segwit";
 import Witness "mo:bitcoin/bitcoin/Witness";
 import Hex "mo:base16/Base16";
 
 import Utils "./Utils";
 import DebugUtils "DebugUtils";
 import Types "Types";
+import P2WPKH "./bitcoin/P2WPKH";
 
 module {
     let CURVE : Curves.Curve = Curves.secp256k1;
@@ -103,24 +104,23 @@ module {
     /// A P2WPKH address in `Text` format.
     public func public_key_to_p2wpkh_address(
         network : BitcoinTypes.Network,
-        public_key_bytes : [Nat8],
+        public_key_bytes : [Nat8], // Debe ser comprimida
     ) : Text {
-        if (public_key_bytes.size() != 33 and public_key_bytes.size() != 65) {
-            Debug.trap("Invalid public key length: expected 33 or 65 bytes");
+        if (public_key_bytes.size() != 33) {
+            Debug.trap("❌ public_key_to_p2wpkh_address: Requires a compressed public key (33 bytes), got " # Nat.toText(public_key_bytes.size()));
         };
 
-        let sha256_hash = Sha256.fromArray(#sha256, public_key_bytes);
-        let hash160 = Ripemd160.hash(Blob.toArray(sha256_hash));
+        let sec1_key : EcdsaTypes.Sec1PublicKey = (public_key_bytes, CURVE);
 
-        let hrp = switch network {
-            case (#Mainnet) "bc";
-            case (#Testnet) "tb";
-            case (#Regtest) "bcrt";
-        };
-
-        switch (Segwit.encode(hrp, { version = 0; program = hash160 })) {
-            case (#ok(addr)) addr;
-            case (#err(msg)) Debug.trap("❌ Failed to encode segwit address: " # msg);
+        Debug.print("🔑 Deriving P2WPKH address from compressed key (hex): " # DebugUtils.toHex(public_key_bytes));
+        switch (P2WPKH.deriveAddress(network, sec1_key)) {
+            case (#ok(addr)) {
+                Debug.print("✅ Derived P2WPKH address: " # addr);
+                addr;
+            };
+            case (#err(msg)) {
+                Debug.trap("❌ Failed to derive P2WPKH address: " # msg);
+            };
         };
     };
 
