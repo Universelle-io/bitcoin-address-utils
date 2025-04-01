@@ -264,6 +264,116 @@ actor {
 
     };
 
+    public func test_consolidate_utxos_p2wpkh() : async () {
+        let principal = Principal.fromText(test_principal);
+        let path = BitcoinAddressGenerator.get_derivation_path_from_owner(principal, null);
+        let EcdsaActor : Types.EcdsaCanisterActor = actor ("aaaaa-aa");
+        let key_name = "dfx_test_key";
+
+        // Obtener dirección P2WPKH
+        let address = await BitcoinAddressGenerator.get_p2wpkh_address(
+            path,
+            #Regtest,
+            EcdsaActor,
+            key_name,
+        );
+        Debug.print("📬 Dirección P2WPKH para consolidar: " # address);
+
+        // Obtener pubkey en formato SEC1 comprimido
+        let pubkey_reply = await EcdsaActor.ecdsa_public_key({
+            canister_id = null;
+            derivation_path = path;
+            key_id = { curve = #secp256k1; name = key_name };
+        });
+        let pubkey_sec1 = Blob.toArray(pubkey_reply.public_key);
+
+        // Obtener UTXOs
+        Debug.print("🔍 Buscando UTXOs...");
+        let utxos_response = await BitcoinApi.get_utxos(#Regtest, address);
+        let utxos = utxos_response.utxos;
+        assert (utxos.size() > 0);
+        // Calcular total
+        let total : Nat64 = Array.foldLeft(
+            utxos,
+            0 : Nat64,
+            func(acc : Nat64, utxo : BitcoinApi.Utxo) : Nat64 {
+                acc + utxo.value;
+            },
+        );
+
+        let fee : Nat64 = 10000;
+        let amount : Nat64 = total - fee;
+
+        // Parsear dirección
+        let parsed_address_res = Address.addressFromText(address);
+        let btc_address : BitcoinTypes.Address = switch (parsed_address_res) {
+            case (#ok(a)) a;
+            case (#err(e)) {
+                Debug.print("❌ Dirección inválida: " # e);
+                assert false;
+                #p2pkh("");
+            };
+        };
+
+        // Construir transacción consolidando todos los utxos a sí misma
+        let destinations : [(BitcoinTypes.Address, Nat64)] = [(btc_address, amount)];
+        let tx_result = Bitcoin.buildTransaction(
+            2,
+            utxos,
+            destinations,
+            btc_address,
+            fee,
+        );
+
+        let tx : Transaction.Transaction = switch tx_result {
+            case (#ok(t)) t;
+            case (#err(e)) {
+                Debug.print("❌ Error al construir la tx: " # e);
+                assert false;
+                Transaction.Transaction(2, [], [], Array.init<Witness.Witness>(0, Witness.EMPTY_WITNESS), 0);
+            };
+        };
+
+        let tx_hex = Hex.encode(Blob.fromArray(tx.toBytes()));
+        Debug.print("📤 Transacción (hex) antes de firmar: " # tx_hex);
+
+        // Firmar la transacción
+        let signed_result = await BitcoinAddressGenerator.sign_transaction_p2wpkh_from_hex(
+            tx_hex,
+            pubkey_sec1,
+            path,
+            EcdsaActor,
+            key_name,
+            utxos,
+        );
+
+        Debug.print("🔏 Firmando transacción...");
+
+        let tx_bytes : [Nat8] = switch signed_result {
+            case (#ok(signed_tx)) {
+                Debug.print("✅ Transacción firmada (hex): " # signed_tx);
+                assert (signed_tx.size() > 0);
+
+                switch (Hex.decode(signed_tx)) {
+                    case (?blob) Blob.toArray(blob);
+                    case null {
+                        Debug.print("❌ No se pudo decodificar el hex.");
+                        assert false;
+                        [];
+                    };
+                };
+            };
+            case (#err(e)) {
+                Debug.print("❌ Error al firmar: " # e);
+                assert false;
+                [];
+            };
+        };
+
+        await BitcoinApi.send_transaction(#Regtest, tx_bytes);
+
+    };
+
     public func runTests() : async () {
         await test("deterministic P2PKH address", test_deterministic_p2pkh_address);
         await test("deterministic P2WPKH address", test_deterministic_p2wpkh_address);
