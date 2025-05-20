@@ -4,6 +4,9 @@ import Principal "mo:base/Principal";
 import Blob "mo:base/Blob";
 import Text "mo:base/Text";
 import Array "mo:base/Array";
+import Result "mo:base/Result";
+import Nat "mo:base/Nat";
+import Nat64 "mo:base/Nat64";
 import Sha256 "mo:sha2/Sha256";
 import BitcoinAddressGenerator "../src/lib";
 import Types "../src/Types";
@@ -252,13 +255,14 @@ actor {
 
     };
 
-    public func test_consolidate_utxos_p2wpkh() : async () {
+    public func test_consolidate_utxos_p2wpkh() : async Result.Result<(Text, Text), Text> {
         let principal = Principal.fromText(test_principal);
         let path = BitcoinAddressGenerator.get_derivation_path_from_owner(principal, null);
         let EcdsaActor : Types.EcdsaCanisterActor = actor ("aaaaa-aa");
-        let key_name = "dfx_test_key";
+        let key_name = "dfx_test_key"; // Use appropriate key name
 
         // Obtener dirección P2WPKH
+        // get_p2wpkh_address returns Text, assuming it traps on internal error
         let address = await BitcoinAddressGenerator.get_p2wpkh_address(
             path,
             #Regtest,
@@ -267,29 +271,51 @@ actor {
         );
         Debug.print("📬 Dirección P2WPKH para consolidar: " # address);
 
-        // Obtener pubkey en formato SEC1 comprimido
-        let pubkey_reply = await EcdsaActor.ecdsa_public_key({
+        Debug.print("🔑 Obteniendo clave pública ECDSA...");
+
+        // Asumiendo que ecdsa_public_key devuelve el récord directamente y atrapa en error
+        let pubkey_reply : { public_key : Blob; chain_code : Blob } = await EcdsaActor.ecdsa_public_key({
             canister_id = null;
             derivation_path = path;
             key_id = { curve = #secp256k1; name = key_name };
         });
+        // Si la línea anterior se completa sin atrapar, tenemos la respuesta. No se necesita switch.
+        Debug.print("✅ Clave pública obtenida.");
+
         let pubkey_sec1 = Blob.toArray(pubkey_reply.public_key);
+
+        // Añadir validación para asegurar que es comprimida (necesario para P2WPKH)
+        if (pubkey_sec1.size() != 33) {
+            Debug.print("❌ Error: La clave pública obtenida no está comprimida (33 bytes)");
+            // Ahora que la función devuelve Result, usamos return #err
+            return #err("Retrieved public key is not compressed (33 bytes)");
+        };
 
         // Obtener UTXOs
         Debug.print("🔍 Buscando UTXOs...");
+        // Assuming BitcoinApi.get_utxos returns Result
         let utxos_response = await BitcoinApi.get_utxos(#Regtest, address);
         let utxos = utxos_response.utxos;
-        assert (utxos.size() > 0);
+
+        if (utxos.size() == 0) {
+            Debug.print("ℹ️ No UTXOs found for address " # address # ". Nothing to consolidate.");
+            return #err("No UTXOs found to consolidate"); // Or maybe #ok with a specific message?
+        };
+        Debug.print("💰 Found " # Nat.toText(utxos.size()) # " UTXOs.");
+
         // Calcular total
-        let total : Nat64 = Array.foldLeft(
+        let total : Nat64 = Array.foldLeft<BitcoinApi.Utxo, Nat64>(
+            // Use correct Utxo type
             utxos,
             0 : Nat64,
-            func(acc : Nat64, utxo : BitcoinApi.Utxo) : Nat64 {
-                acc + utxo.value;
-            },
+            func(acc, utxo) { acc + utxo.value },
         );
+        Debug.print("Σ Total value: " # Nat64.toText(total) # " satoshis");
 
-        let fee : Nat64 = 10000;
+        let fee : Nat64 = 10000; // Example fee
+        if (total <= fee) {
+            return #err("Total value (" # Nat64.toText(total) # ") is not enough to cover fee (" # Nat64.toText(fee) # ")");
+        };
         let amount : Nat64 = total - fee;
 
         // Parsear dirección
@@ -297,18 +323,18 @@ actor {
         let btc_address : BitcoinTypes.Address = switch (parsed_address_res) {
             case (#ok(a)) a;
             case (#err(e)) {
-                Debug.print("❌ Dirección inválida: " # e);
-                assert false;
-                #p2pkh("");
+                // Should not happen if get_p2wpkh_address worked, but handle defensively
+                Debug.print("❌ Error parsing own address: " # e);
+                return #err("Error parsing own address: " # e);
             };
         };
 
-        // Construir transacción consolidando todos los utxos a sí misma
+        // Construir transacción
         let destinations : [(BitcoinTypes.Address, Nat64)] = [(btc_address, amount)];
-        Debug.print("📤 BTC_ADDRESS: " # debug_show(btc_address));
-        Debug.print("📤 DESTINATIONS: " # debug_show(destinations));
+        // Ensure utxos type matches what buildTransaction expects ([BitcoinTypes.Utxo]?)
+        // If BitcoinApi.Utxo != BitcoinTypes.Utxo, mapping might be needed. Assuming compatible for now.
         let tx_result = Bitcoin.buildTransaction(
-            2,
+            2, // version
             utxos,
             destinations,
             btc_address,
@@ -319,49 +345,70 @@ actor {
             case (#ok(t)) t;
             case (#err(e)) {
                 Debug.print("❌ Error al construir la tx: " # e);
-                assert false;
-                Transaction.Transaction(2, [], [], Array.init<Witness.Witness>(0, Witness.EMPTY_WITNESS), 0);
+                return #err("Error building transaction: " # e);
             };
         };
 
         let tx_hex = Hex.encode(Blob.fromArray(tx.toBytes()));
-        Debug.print("📤 Transacción (hex) antes de firmar: " # tx_hex);
+        Debug.print("🛠️ Transacción construida (hex): " # tx_hex); // Or use debug_show
 
         // Firmar la transacción
+        Debug.print("🔏 Firmando transacción...");
         let signed_result = await BitcoinAddressGenerator.sign_transaction_p2wpkh_from_hex(
             tx_hex,
-            pubkey_sec1,
+            pubkey_sec1, // Must be compressed
             path,
             EcdsaActor,
             key_name,
-            utxos,
+            utxos, // Pass UTXOs for value calculation during signing
         );
 
-        Debug.print("🔏 Firmando transacción...");
+        // Procesar resultado de la firma
+        switch (signed_result) {
+            case (#ok(signed_tx_hex)) {
+                Debug.print("✅ Transacción firmada (hex): " # signed_tx_hex); // Or debug_show
 
-        let tx_bytes : [Nat8] = switch signed_result {
-            case (#ok(signed_tx)) {
-                Debug.print("✅ Transacción firmada (hex): " # signed_tx);
-                assert (signed_tx.size() > 0);
+                // --- Obtener bytes y TXID ---
+                let ?tx_blob = Hex.decode(signed_tx_hex) else {
+                    Debug.print("❌ Error crítico: No se pudo decodificar el hex de la tx firmada.");
+                    return #err("Failed to decode signed transaction hex");
+                };
+                let tx_bytes = Blob.toArray(tx_blob);
 
-                switch (Hex.decode(signed_tx)) {
-                    case (?blob) Blob.toArray(blob);
-                    case null {
-                        Debug.print("❌ No se pudo decodificar el hex.");
-                        assert false;
-                        [];
+                if (tx_bytes.size() == 0) {
+                    return #err("Signed transaction decoded to empty bytes");
+                };
+
+                // Re-parsear para obtener TXID (costoso pero necesario si solo tenemos hex)
+                let iter = Array.vals(tx_bytes);
+                let tx_obj_res = Transaction.fromBytes(iter);
+                let parsed_tx = switch (tx_obj_res) {
+                    case (#ok t) t;
+                    case (#err e) {
+                        Debug.print("❌ Error crítico: No se pudo re-parsear la tx firmada: " # e);
+                        return #err("Failed to re-parse signed transaction: " # e);
                     };
                 };
+                let txid_bytes = parsed_tx.txid(); // Llama al método txid() en el objeto
+                let txid_hex = Hex.encode(Blob.fromArray(txid_bytes));
+                Debug.print("🆔 TXID: " # txid_hex);
+                // --- Fin obtener bytes y TXID ---
+
+                // Enviar transacción
+                Debug.print("🚀 Enviando transacción...");
+                // Consider adding error handling for send_transaction if it returns Result
+                await BitcoinApi.send_transaction(#Regtest, tx_bytes);
+                Debug.print("✅ Transacción enviada (esperando confirmación).");
+
+                // Devolver (#ok (txid, signed_hex))
+                #ok((txid_hex, signed_tx_hex));
+
             };
-            case (#err(e)) {
-                Debug.print("❌ Error al firmar: " # e);
-                assert false;
-                [];
+            case (#err(sign_err)) {
+                Debug.print("❌ Error al firmar la transacción: " # sign_err);
+                #err("Transaction signing failed: " # sign_err); // Devolver error
             };
         };
-
-        await BitcoinApi.send_transaction(#Regtest, tx_bytes);
-
     };
 
     public func runTests() : async () {

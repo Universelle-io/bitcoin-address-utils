@@ -5,7 +5,7 @@ import Blob "mo:base/Blob";
 import Array "mo:base/Array";
 import Nat8 "mo:base/Nat8";
 import Text "mo:base/Text";
-import BitcoinTypes "mo:bitcoin/bitcoin/Types";
+import BitcoinTypes "bitcoin/Types";
 import Curves "mo:bitcoin/ec/Curves";
 import Ripemd160 "mo:bitcoin/Ripemd160";
 import Sha256 "mo:sha2/Sha256";
@@ -91,6 +91,30 @@ module {
         let pubkey_bytes = Blob.toArray(public_key_reply.public_key);
 
         public_key_to_p2pkh_address(network, pubkey_bytes);
+    };
+
+    /// Asynchronously retrieves the public key for a given owner and derivation path from the ECDSA canister.
+    ///
+    /// # Parameters:
+    /// - `derivation_path`: The derivation path used to derive the public key.
+    /// - `ecdsa_canister_actor`: The ECDSA canister actor used to get the public key.
+    /// - `key_name`: The name of the key to use in the canister for deriving the public key.
+    ///
+    /// # Returns:
+    /// A byte array containing the public key in SEC1-compressed format. [Nat8]
+    
+    public func get_public_key(
+        derivation_path : [Blob],
+        ecdsa_canister_actor : Types.EcdsaCanisterActor,
+        key_name : Text,
+    ) : async [Nat8] {
+        let public_key_reply = await ecdsa_canister_actor.ecdsa_public_key({
+            canister_id = null;
+            derivation_path = derivation_path;
+            key_id = { curve = #secp256k1; name = key_name };
+        });
+
+        Blob.toArray(public_key_reply.public_key);
     };
 
     /// Generates a P2WPKH address from a public key (compressed SEC1 format) and the specified network.

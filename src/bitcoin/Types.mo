@@ -47,4 +47,11 @@ module {
     #p2tr_key : P2trKeyAddress;
     #p2tr_script : P2trScriptAddress;
   };
+
+  public type BitcoinSendTransactionError = {
+    #MalformedTransaction : Text;
+    #QueueFull : Text;
+    #TemporarilyUnavailable : Text;
+    #Unknown : Text;
+  };
 };

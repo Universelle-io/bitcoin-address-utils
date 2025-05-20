@@ -1,5 +1,8 @@
 import ExperimentalCycles "mo:base/ExperimentalCycles";
-
+import Result "mo:base/Result";
+import Debug "mo:base/Debug";
+import Text "mo:base/Text";
+import BitcoinTypes "bitcoin/Types";
 
 module {
     public type Cycles = Nat;
@@ -35,15 +38,15 @@ module {
         tip_height : Nat32;
         next_page : ?Page;
     };
-    
+
     public type MillisatoshiPerVByte = Nat64;
-    
+
     public type GetBalanceRequest = {
         address : BitcoinAddress;
         network : Network;
         min_confirmations : ?Nat32;
     };
-    
+
     public type UtxosFilter = {
         #MinConfirmations : Nat32;
         #Page : Page;
@@ -54,23 +57,22 @@ module {
         network : Network;
         filter : ?UtxosFilter;
     };
-    
+
     public type GetCurrentFeePercentilesRequest = {
         network : Network;
     };
-    
-    
+
     public type SendTransactionRequest = {
         transaction : [Nat8];
         network : Network;
     };
 
     // The fees for the various Bitcoin endpoints.
-    let GET_BALANCE_COST_CYCLES : Cycles = 100_000_000;
-    let GET_UTXOS_COST_CYCLES : Cycles = 10_000_000_000;
-    let GET_CURRENT_FEE_PERCENTILES_COST_CYCLES : Cycles = 100_000_000;
-    let SEND_TRANSACTION_BASE_COST_CYCLES : Cycles = 5_000_000_000;
-    let SEND_TRANSACTION_COST_CYCLES_PER_BYTE : Cycles = 20_000_000;
+    public let GET_BALANCE_COST_CYCLES : Cycles = 100_000_000;
+    public let GET_UTXOS_COST_CYCLES : Cycles = 10_000_000_000;
+    public let GET_CURRENT_FEE_PERCENTILES_COST_CYCLES : Cycles = 100_000_000;
+    public let SEND_TRANSACTION_BASE_COST_CYCLES : Cycles = 5_000_000_000;
+    public let SEND_TRANSACTION_COST_CYCLES_PER_BYTE : Cycles = 20_000_000;
 
     /// Actor definition to handle interactions with the management canister.
     type ManagementCanisterActor = actor {
@@ -133,4 +135,38 @@ module {
             transaction;
         });
     };
+
+    //public func send_bitcoin_transaction(network : BitcoinTypes.Network, transaction : [Nat8]) : async Result.Result<(), BitcoinTypes.BitcoinSendTransactionError> {
+    //    let transaction_fee = SEND_TRANSACTION_BASE_COST_CYCLES + transaction.size() * SEND_TRANSACTION_COST_CYCLES_PER_BYTE;
+    //
+    //    // ExperimentalCycles.add<system>(transaction_fee); // Mantenemos la lógica de ciclos (comentada) consistente
+    //
+    //    try {
+    //        // Llama a la función del management canister
+    //        await management_canister_actor.bitcoin_send_transaction({
+    //            network;
+    //            transaction;
+    //        });
+    //        // Si la llamada await no falla (no hace trap), es éxito
+    //        return #Ok;
+    //    } catch (e) {
+    //        // Si la llamada await falla, entra en el bloque catch
+    //        // Analizamos el error 'e' para devolver un BitcoinError apropiado
+    //        // El objeto 'e' de Motoko no siempre es fácil de inspeccionar,
+    //        // a menudo se usa Debug.show para obtener una representación textual.
+    //
+    //        // Intentamos clasificar el error basándonos en patrones comunes en el mensaje
+    //        // Nota: Esto es una aproximación; la robustez depende de los mensajes de error reales.
+    //        if (Text.contains(e, "malformed transaction") or Text.contains(error_text, "invalid transaction")) {
+    //            return #Err(#MalformedTransaction(error_text));
+    //        } else if (Text.contains(error_text, "Queue full")) {
+    //            return #Err(#QueueFull(error_text));
+    //        } else if (Text.contains(error_text, "temporarily unavailable")) {
+    //            return #Err(#TemporarilyUnavailable(error_text));
+    //        } else {
+    //            // Si no coincide con los patrones conocidos, se clasifica como desconocido
+    //            return #Err(#Unknown(error_text));
+    //        };
+    //    };
+    //};
 };

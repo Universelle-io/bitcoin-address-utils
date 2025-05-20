@@ -19,8 +19,7 @@ module {
                         return #ok(#p2wpkh(address));
                     } else if (witnessProgram.program.size() == 32) {
                         // Version 0, 32-byte program -> P2WSH (Add #p2wsh variant to Types.mo first)
-                        return #err("P2WSH address detected but not yet fully supported in Types.Address");
-                        // return #ok(#p2wsh(address)); // Enable if #p2wsh is added
+                        return #ok(#p2wsh(address)); // Enable if #p2wsh is added
                     } else {
                         return #err("Invalid program size for witness version 0");
                     };
